@@ -19,6 +19,7 @@ model Tenant {
   primaryColor     String   @default("#54433A")
   secondaryColor   String   @default("#F5E6D3")
   applePassTypeId  String?
+  appleLogo        Bytes?   @db.MediumBlob
   googleIssuerId   String?
   googleClass      String?  @unique
   clubName         String?

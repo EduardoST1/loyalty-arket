@@ -10,9 +10,6 @@ import {
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  if (pathname.startsWith("/api/wallet/apple/v1/")) {
-    return NextResponse.json({ message: "Apple Wallet pendiente" }, { status: 404 });
-  }
   const res = NextResponse.next();
 
   if (pathname.startsWith("/_next/static")) {

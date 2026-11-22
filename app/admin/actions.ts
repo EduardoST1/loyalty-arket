@@ -8,6 +8,7 @@ import { hashAccessCode, allowLoginAttempt } from "@/lib/access-code";
 import { STAMP_REWARD_SLUG } from "@/lib/stamps";
 import { BRAND } from "@/lib/brand";
 import { tenantProgram } from "@/lib/tenant";
+import { prepareAppleLogo } from "@/lib/apple-wallet-art";
 import { isGoogleConfigured } from "@/lib/wallet-config";
 import { hasAdminSession, loginAdmin, logoutAdmin } from "./session";
 
@@ -60,6 +61,16 @@ export async function saveBusiness(_: AdminResult, form: FormData): Promise<Admi
     return { error: "Esa clase está reservada para el programa piloto." };
   }
   if ((!existing || staffPin) && !/^\d{8,16}$/.test(staffPin)) return { error: "El PIN de caja debe tener entre 8 y 16 dígitos." };
+  let appleLogo: Uint8Array<ArrayBuffer> | null | undefined = form.has("removeAppleLogo") ? null : undefined;
+  const uploaded = form.get("appleLogo");
+  if (uploaded instanceof File && uploaded.size) {
+    try {
+      appleLogo = new Uint8Array(await prepareAppleLogo(uploaded));
+    } catch {
+      return { error: "Sube un PNG o JPG válido, de hasta 500 KB y 4 megapíxeles." };
+    }
+  }
+  const appleArtChange = appleLogo === undefined ? {} : { appleLogo };
   const pinChange = staffPin ? { staffPinHash: await hashAccessCode(staffPin) } : {};
   try {
     await prisma.$transaction(async tx => {
@@ -76,8 +87,8 @@ export async function saveBusiness(_: AdminResult, form: FormData): Promise<Admi
         throw new Error("La meta ya está en uso. Conserva el número de sellos del programa.");
       }
       const tenant = current
-        ? await tx.tenant.update({ where: { id: current.id }, data: { ...data, ...pinChange } })
-        : await tx.tenant.create({ data: { slug, ...data, ...pinChange } });
+        ? await tx.tenant.update({ where: { id: current.id }, data: { ...data, ...pinChange, ...appleArtChange } })
+        : await tx.tenant.create({ data: { slug, ...data, ...pinChange, ...appleArtChange } });
       await tx.tipoCanje.upsert({
         where: { tenantId_slug: { tenantId: tenant.id, slug: STAMP_REWARD_SLUG } },
         update: { nombre: data.stampReward, activo: true },

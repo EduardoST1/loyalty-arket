@@ -8,24 +8,6 @@ import path from "path";
  */
 
 export const WALLET_CONFIG = {
-  apple: {
-    passTypeId: process.env.APPLE_PASS_TYPE_ID || "pass.com.negocio.loyalty",
-    teamId: process.env.APPLE_TEAM_ID || "",
-    certificates: {
-      passTypeCert: process.env.APPLE_PASS_CERT_PATH || "",
-      passTypeCertPassword: process.env.APPLE_PASS_CERT_PASSWORD || "",
-      apnsKey: process.env.APPLE_APNS_KEY_PATH || "",
-      apnsKeyId: process.env.APPLE_APNS_KEY_ID || "",
-    },
-    apns: {
-      production: process.env.NODE_ENV === "production",
-      topic: process.env.APPLE_PASS_TYPE_ID || "pass.com.negocio.loyalty",
-    },
-    webServiceURL:
-      process.env.APPLE_WEB_SERVICE_URL ||
-      "https://tu-dominio.com/api/wallet/apple",
-  },
-
   google: {
     issuerId: process.env.GOOGLE_WALLET_ISSUER_ID || "",
     serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || "",
@@ -35,13 +17,6 @@ export const WALLET_CONFIG = {
     classId: process.env.GOOGLE_LOYALTY_CLASS_ID || "loyalty_class",
   },
 };
-
-export function isAppleConfigured(): boolean {
-  return !!(
-    WALLET_CONFIG.apple.teamId &&
-    WALLET_CONFIG.apple.certificates.passTypeCert
-  );
-}
 
 function googleKeyFileExists(): boolean {
   try {

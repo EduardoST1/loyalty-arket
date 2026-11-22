@@ -64,6 +64,13 @@ export function TenantForm({ business }: { business?: BusinessForm }) {
     <label className="font-medium">Sufijo de la clase de Google Wallet
       <input name="googleClass" defaultValue={business?.googleClass || ""} maxLength={100} placeholder="Opcional, se configura en Google" className={fieldStyle} />
     </label>
+    <label className="font-medium">Logo para Apple Wallet
+      <input type="file" name="appleLogo" accept="image/png,image/jpeg" className={fieldStyle} />
+      <span className="mt-1 block text-xs font-normal text-slate-600">PNG o JPG de hasta 500 KB. El pase muestra el nombre del programa si no subes un logo.</span>
+    </label>
+    {business && <label className="flex items-center gap-2 self-center text-sm">
+      <input type="checkbox" name="removeAppleLogo" /> Quitar el logo de Apple Wallet
+    </label>}
     {state.error && <p role="alert" className="text-red-700 sm:col-span-2">{state.error}</p>}
     <div className="sm:col-span-2"><button disabled={pending} className={buttonStyle}>{pending ? "Guardando…" : business ? "Guardar cambios" : "Dar de alta negocio"}</button></div>
   </form>;

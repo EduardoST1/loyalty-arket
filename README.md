@@ -20,7 +20,7 @@ Piloto de lealtad de Arket Studio. Incluye registro, tarjeta web, Google Wallet 
 
 La meta inicial es de seis sellos. Cambia `NEXT_PUBLIC_STAMP_GOAL` y `NEXT_PUBLIC_STAMP_REWARD` antes de abrir un programa nuevo. Usa la misma regla de recompensa en la clase de Google. Los documentos incluidos describen una prueba con datos ficticios. Antes de recibir clientes reales, publica los términos y el aviso de privacidad del programa y define cómo recuperar la tarjeta en otro navegador.
 
-El panel central comparte una base entre negocios. Apple Wallet queda pendiente.
+El panel central comparte una base entre negocios. Consulta la configuración de Apple Wallet más abajo.
 
 ## Panel central de Arket
 
@@ -29,3 +29,15 @@ El panel central comparte una base entre negocios. Apple Wallet queda pendiente.
 3. Abre `/admin` e inicia sesión. Crea el negocio con un identificador para su URL, su programa, la meta, la recompensa y un PIN de caja de 8 a 16 dígitos. El logo por URL HTTPS es opcional.
 4. Desde la ficha del negocio abre **Registro de clientes** o **Acceso a caja**. Las rutas quedan bajo `/n/IDENTIFICADOR/`. Usa esas rutas para operar cada negocio. El paquete elegido se guarda como dato comercial.
 5. Para Google Wallet, prepara una clase aprobada en el emisor compartido y guarda en la ficha del negocio solo su sufijo. Las credenciales del emisor se configuran una vez en el servidor. La tarjeta web y caja están disponibles sin una clase de Google.
+
+## Apple Wallet
+
+La instalación usa un **Pass Type ID** y una firma de Arket para todos los negocios. En la ficha de cada negocio, ajusta el nombre y los colores y carga su logo para Apple si corresponde. Cada cliente recibe su propio pase firmado y Wallet consulta el saldo actualizado después de las operaciones de caja.
+
+1. Para una base multiempresa existente, ejecuta una vez `npx prisma db execute --schema prisma/schema.prisma --file prisma/upgrades/agregar-apple-wallet.sql` antes de desplegar. Para una base del piloto original, aplica primero `piloto-a-multiempresa.sql`. En una base nueva, `npm run db:push` crea el esquema completo.
+2. En Apple Developer crea el Pass Type ID y su certificado, y obtén el certificado intermedio WWDR que firma el certificado del pase. Exporta la clave privada correspondiente como PEM. Configura en el servidor `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_SIGNER_CERT_PEM_BASE64`, `APPLE_SIGNER_KEY_PEM_BASE64` y `APPLE_WWDR_PEM_BASE64`. Cada valor Base64 codifica el archivo PEM completo. Si la clave PEM está cifrada, define `APPLE_SIGNER_KEY_PASSPHRASE`.
+3. Genera `APPLE_PASS_AUTH_SECRET` con al menos 32 caracteres aleatorios. Conserva el secreto incluso si renuevas el certificado, ya que los pases guardados lo usan para autenticarse.
+4. Define `NEXT_PUBLIC_APP_URL` con la URL HTTPS del sitio. El servicio de actualización queda bajo `/api/wallet/apple`. Si usas otra URL pública HTTPS para esa ruta, configúrala en `APPLE_WEB_SERVICE_URL`.
+5. Desde un iPhone, registra un cliente de prueba, pulsa **Agregar a Apple Wallet** y confirma la instalación. Desde caja registra una visita y un canje y comprueba que el saldo cambie en Wallet. Hostinger debe permitir la conexión saliente HTTP/2 a APNs por el puerto 443.
+
+[Configuración del servicio de Apple Wallet](https://developer.apple.com/documentation/walletpasses/adding-a-web-service-to-update-passes).

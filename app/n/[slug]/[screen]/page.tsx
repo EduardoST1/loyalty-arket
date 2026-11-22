@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { activeTenant, tenantProgram } from "@/lib/tenant";
 import { verifyBaristaSessionToken, staffCookieName, staffSessionScope } from "@/lib/barista-session";
 import { BusinessScreen } from "./screen";
+import { appleWalletConfig } from "@/lib/wallet-apple-config";
 import { googleEnabledFor } from "@/lib/wallet-google";
 
 export default async function TenantScreen({ params }: { params: Promise<{ slug: string; screen: string }> }) {
@@ -19,6 +20,6 @@ export default async function TenantScreen({ params }: { params: Promise<{ slug:
     slug, name: tenant.nombre, clubName: tenant.clubName || tenant.nombre,
     tagline: tenant.tagline || "Acumula sellos y canjea recompensas",
     logo: tenant.logoUrl, color: tenant.primaryColor, accent: tenant.secondaryColor,
-    goal: program.goal, reward: program.reward, google: googleEnabledFor(program),
+    goal: program.goal, reward: program.reward, google: googleEnabledFor(program), apple: !!appleWalletConfig(),
   }} />;
 }

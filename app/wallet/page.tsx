@@ -72,6 +72,20 @@ function WalletPageContent() {
   const [activeTab, setActiveTab] = useState<"home" | "rewards">("home");
   const [showRecoveredBanner, setShowRecoveredBanner] = useState(recovered);
   const [walletMsg, setWalletMsg] = useState<string | null>(null);
+  const [appleReady, setAppleReady] = useState(false);
+  const showApple = tenant?.apple ?? appleReady;
+  const showGoogle = !tenant || tenant.google;
+
+  useEffect(() => {
+    if (tenant) return;
+    const controller = new AbortController();
+    fetch("/api/wallet/status", { signal: controller.signal })
+      .then(res => res.ok ? res.json() : null)
+      .then(status => { if (status?.apple) setAppleReady(true); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [tenant]);
+
   const isFirstLoad = useRef(true);
 
   useEffect(() => {
@@ -270,19 +284,18 @@ function WalletPageContent() {
               />
             </div>
 
-            {(!tenant || tenant.google) && <>
-            <WalletButtons
-              onGoogle={handleAddToGoogleWallet}
-            />
+            {(showApple || showGoogle) && <WalletButtons
+              onApple={showApple ? () => { window.location.href = api(`/api/wallet/apple/${clienteId}`); } : undefined}
+              onGoogle={showGoogle ? handleAddToGoogleWallet : undefined}
+            />}
 
-            <button
+            {showGoogle && <button
               type="button"
               onClick={() => void handleRefreshGooglePass()}
               className="mt-3 w-full rounded-2xl border-2 border-dulza-jade/40 bg-white px-4 py-3 text-sm font-semibold text-dulza-jade"
             >
               Forzar actualización en Google Wallet
-            </button>
-            </>}
+            </button>}
             {walletMsg && (
               <p className="mt-2 rounded-xl bg-dulza-cream px-3 py-2 text-xs text-dulza-chocolate-dark">
                 {walletMsg}

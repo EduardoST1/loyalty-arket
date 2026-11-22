@@ -14,6 +14,7 @@ export type TenantView = {
   goal: number;
   reward: string;
   google: boolean;
+  apple: boolean;
 };
 
 export const TenantViewContext = createContext<TenantView | null>(null);
