@@ -1,0 +1,29 @@
+# Dependencies
+node_modules
+.next
+out
+dist
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+certificates/*.json
+certificates/*.pem
+certificates/*.p12
+certificates/*.key
+!certificates/README.md
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local build metadata
+*.tsbuildinfo
+next-env.d.ts

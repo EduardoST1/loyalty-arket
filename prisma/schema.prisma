@@ -1,0 +1,324 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// MULTI-TENANT CORE (loyalty only)
+// ============================================
+
+model Tenant {
+  id               Int      @id @default(autoincrement())
+  nombre           String
+  slug             String   @unique
+  logoUrl          String?
+  primaryColor     String   @default("#54433A")
+  secondaryColor   String   @default("#F5E6D3")
+  applePassTypeId  String?
+  googleIssuerId   String?
+  activo           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  clientes    Cliente[]
+  visitas     Visita[]
+  categorias  Categoria[]
+  logros      Logro[]
+  tiposCanjes TipoCanje[]
+
+  @@index([slug])
+  @@index([activo])
+  @@map("tenants")
+}
+
+model Cliente {
+  id              Int       @id @default(autoincrement())
+  tenantId        Int
+  nombre          String
+  telefono        String
+  fechaCumpleanos DateTime
+  qrCode          String    @unique
+  codigoReferido  String    @unique
+  pin             String    @unique @default("0000")
+  puntos          Int       @default(0)
+  visitas         Int       @default(0)
+  sellosCanjeados Int       @default(0)
+  nivel           Nivel     @default(BRONCE)
+  activo          Boolean   @default(true)
+  fechaRegistro   DateTime  @default(now())
+  ultimaVisita    DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  tenant              Tenant            @relation(fields: [tenantId], references: [id])
+  visitasRealizadas   Visita[]
+  logrosDesbloqueados ClienteLogro[]
+  canjesRealizados    Canje[]
+  puntosHistorial     PuntoHistorial[]
+  referidosHechos     Referido[]        @relation("Referente")
+  referidoPor         Referido?         @relation("Referido")
+  walletDevices       WalletDevice[]
+
+  @@unique([tenantId, telefono])
+  @@index([tenantId])
+  @@index([qrCode])
+  @@index([codigoReferido])
+  @@index([pin])
+  @@index([nivel])
+  @@index([ultimaVisita])
+  @@map("clientes")
+}
+
+model WalletDevice {
+  id              Int      @id @default(autoincrement())
+  clienteId       Int
+  deviceLibraryId String
+  pushToken       String
+  tipo            String
+  passTypeId      String
+  serialNumber    String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceLibraryId, passTypeId, serialNumber])
+  @@index([clienteId])
+  @@index([serialNumber])
+  @@map("wallet_devices")
+}
+
+enum Nivel {
+  BRONCE
+  PLATA
+  ORO
+  DIAMANTE
+}
+
+model Visita {
+  id               Int      @id @default(autoincrement())
+  tenantId         Int
+  clienteId        Int
+  puntosVisita     Int      @default(10)
+  puntosCategorias Int      @default(0)
+  puntosBonus      Int      @default(0)
+  esCanjeGratis    Boolean  @default(false)
+  fecha            DateTime @default(now())
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id])
+  cliente    Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  categorias VisitaCategoria[]
+
+  @@index([tenantId])
+  @@index([clienteId])
+  @@index([fecha])
+  @@index([clienteId, fecha(sort: Desc)])
+  @@map("visitas")
+}
+
+model Categoria {
+  id              Int       @id @default(autoincrement())
+  tenantId        Int
+  nombre          String
+  slug            String
+  descripcion     String?   @db.Text
+  icono           String    @default("☕")
+  color           String    @default("#000000") @db.VarChar(32)
+  puntosBase      Int       @default(5)
+  esTemporada     Boolean   @default(false)
+  temporadaInicio DateTime?
+  temporadaFin    DateTime?
+  orden           Int       @default(0)
+  activa          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id])
+  visitas VisitaCategoria[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([activa])
+  @@index([orden])
+  @@map("categorias")
+}
+
+model VisitaCategoria {
+  id              Int     @id @default(autoincrement())
+  visitaId        Int
+  categoriaId     Int
+  puntosCategoria Int     @default(5)
+  puntosBonus     Int     @default(0)
+  esPrimeraVez    Boolean @default(false)
+
+  visita    Visita    @relation(fields: [visitaId], references: [id], onDelete: Cascade)
+  categoria Categoria @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+
+  @@unique([visitaId, categoriaId])
+  @@index([visitaId])
+  @@index([categoriaId])
+  @@map("visitas_categorias")
+}
+
+model Logro {
+  id               Int       @id @default(autoincrement())
+  tenantId         Int
+  nombre           String    @db.VarChar(191)
+  slug             String    @db.VarChar(191)
+  descripcion      String    @db.Text
+  icono            String    @default("🏆") @db.VarChar(32)
+  color            String    @default("#FFD700") @db.VarChar(32)
+  puntosRecompensa Int       @default(25)
+  tipo             TipoLogro
+  categoriaId      Int?
+  meta             Int
+  activo           Boolean   @default(true)
+  visible          Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  clientesLogros ClienteLogro[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([tipo])
+  @@index([activo])
+  @@map("logros")
+}
+
+enum TipoLogro {
+  VISITAS
+  CATEGORIA
+  TEMPORADA
+  PUNTOS
+  NIVEL
+  SOCIAL
+  ESPECIAL
+}
+
+model ClienteLogro {
+  id                Int       @id @default(autoincrement())
+  clienteId         Int
+  logroId           Int
+  progresoActual    Int       @default(0)
+  progresoRequerido Int
+  desbloqueado      Boolean   @default(false)
+  fechaInicio       DateTime  @default(now())
+  fechaDesbloqueado DateTime?
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  logro   Logro   @relation(fields: [logroId], references: [id], onDelete: Cascade)
+
+  @@unique([clienteId, logroId])
+  @@index([clienteId])
+  @@index([logroId])
+  @@index([desbloqueado])
+  @@map("clientes_logros")
+}
+
+model Referido {
+  id                 Int       @id @default(autoincrement())
+  clienteReferenteId Int
+  clienteReferidoId  Int       @unique
+  completado         Boolean   @default(false)
+  puntosOtorgados    Boolean   @default(false)
+  fechaRegistro      DateTime  @default(now())
+  fechaPrimeraCompra DateTime?
+
+  clienteReferente Cliente @relation("Referente", fields: [clienteReferenteId], references: [id], onDelete: Cascade)
+  clienteReferido  Cliente @relation("Referido", fields: [clienteReferidoId], references: [id], onDelete: Cascade)
+
+  @@index([clienteReferenteId])
+  @@index([completado])
+  @@map("referidos")
+}
+
+model TipoCanje {
+  id            Int      @id @default(autoincrement())
+  tenantId      Int
+  nombre        String
+  slug          String
+  descripcion   String?
+  icono         String   @default("🎁")
+  imagenUrl     String?
+  costoPuntos   Int
+  activo        Boolean  @default(true)
+  stockLimitado Boolean  @default(false)
+  stockRestante Int?
+  orden         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+  canjes Canje[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([activo])
+  @@index([orden])
+  @@map("tipos_canje")
+}
+
+model Canje {
+  id              Int       @id @default(autoincrement())
+  clienteId       Int
+  tipoCanjeId     Int
+  puntosGastados  Int
+  validado        Boolean   @default(false)
+  fechaValidacion DateTime?
+  fechaCanje      DateTime  @default(now())
+
+  cliente   Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  tipoCanje TipoCanje @relation(fields: [tipoCanjeId], references: [id], onDelete: Restrict)
+
+  @@index([clienteId])
+  @@index([tipoCanjeId])
+  @@index([fechaCanje(sort: Desc)])
+  @@index([validado])
+  @@map("canjes")
+}
+
+model PuntoHistorial {
+  id               Int         @id @default(autoincrement())
+  clienteId        Int
+  tipo             TipoPunto
+  cantidad         Int
+  saldoPrevio      Int
+  saldoNuevo       Int
+  origenTipo       OrigenPunto
+  origenId         Int?
+  descripcion      String?     @db.Text
+  fechaVencimiento DateTime?
+  vencido          Boolean     @default(false)
+  fechaTransaccion DateTime    @default(now())
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId])
+  @@index([tipo])
+  @@index([origenTipo, origenId])
+  @@index([fechaVencimiento])
+  @@index([vencido])
+  @@map("puntos_historial")
+}
+
+enum TipoPunto {
+  GANADO
+  GASTADO
+  VENCIDO
+  AJUSTE
+}
+
+enum OrigenPunto {
+  VISITA
+  LOGRO
+  REFERIDO
+  CUMPLEANOS
+  CANJE
+  VENCIMIENTO
+  MANUAL
+}

@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #faf7f2;
+  --foreground: #3d2e28;
+
+  --dulza-chocolate: #54433a;
+  --dulza-chocolate-dark: #3d2e28;
+  --dulza-cream: #f5e6d3;
+  --dulza-cream-light: #faf7f2;
+  --dulza-coffee: #6b4e3d;
+  --dulza-cookie: #d4a574;
+  --dulza-jade: #1b5e52;
+  --dulza-jade-light: #2a8070;
+  --dulza-jade-dark: #134a40;
+}
+
+@layer base {
+  body {
+    @apply bg-dulza-cream-light text-dulza-chocolate-dark antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-bold;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .dulza-pill {
+    @apply inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-300;
+  }
+
+  .dulza-card {
+    @apply rounded-4xl border border-dulza-cream/80 bg-white shadow-card;
+  }
+}
