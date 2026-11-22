@@ -20,6 +20,13 @@ model Tenant {
   secondaryColor   String   @default("#F5E6D3")
   applePassTypeId  String?
   googleIssuerId   String?
+  googleClass      String?  @unique
+  clubName         String?
+  tagline          String?
+  stampGoal        Int      @default(6)
+  stampReward      String   @default("Recompensa de lealtad")
+  staffPinHash     String?
+  plan             String   @default("lealtad")
   activo           Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -43,7 +50,7 @@ model Cliente {
   fechaCumpleanos DateTime
   qrCode          String    @unique
   codigoReferido  String    @unique
-  pin             String    @unique @default("0000")
+  pin             String    @default("0000")
   puntos          Int       @default(0)
   visitas         Int       @default(0)
   sellosCanjeados Int       @default(0)
@@ -63,6 +70,7 @@ model Cliente {
   walletDevices       WalletDevice[]
 
   @@unique([tenantId, telefono])
+  @@unique([tenantId, pin])
   @@index([tenantId])
   @@index([qrCode])
   @@index([codigoReferido])

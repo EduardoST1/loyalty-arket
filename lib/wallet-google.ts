@@ -1,3 +1,4 @@
+import type { tenantProgram } from "@/lib/tenant";
 import { availableStamps, STAMP_GOAL, STAMP_REWARD } from "@/lib/stamps";
 import fs from "fs";
 import path from "path";
@@ -155,13 +156,20 @@ function getAuth() {
   });
 }
 
-function usesPreparedClass() {
-  return process.env.GOOGLE_WALLET_CLASS_MODE === "prepared";
+type WalletProgram = ReturnType<typeof tenantProgram>;
+
+export function googleEnabledFor(program?: WalletProgram) {
+  return isGoogleConfigured() && (!program || program.isPilot || !!program.googleClass);
 }
 
-function classId() {
-  const { issuerId, classId: suffix } = WALLET_CONFIG.google;
-  if (usesPreparedClass()) {
+function usesPreparedClass(program?: WalletProgram) {
+  return !!program?.googleClass || process.env.GOOGLE_WALLET_CLASS_MODE === "prepared";
+}
+
+function classId(program?: WalletProgram) {
+  const { issuerId, classId: defaultSuffix } = WALLET_CONFIG.google;
+  const suffix = program?.googleClass || defaultSuffix;
+  if (usesPreparedClass(program)) {
     if (!/^\d+$/.test(issuerId) || !/^[A-Za-z0-9._-]+$/.test(suffix) ||
         suffix === "loyalty_class" || suffix.startsWith(`${issuerId}.`)) {
       throw new Error("Configura el Issuer ID y el sufijo de una clase propia del negocio");
@@ -170,9 +178,9 @@ function classId() {
   return `${issuerId}.${suffix}`;
 }
 
-function objectId(qrCode: string) {
+function objectId(qrCode: string, program?: WalletProgram) {
   const safe = qrCode.replace(/[^A-Za-z0-9._-]/g, "_");
-  if (usesPreparedClass()) return `${classId()}.${safe}`;
+  if (usesPreparedClass(program)) return `${classId(program)}.${safe}`;
   return `${WALLET_CONFIG.google.issuerId}.${safe}`;
 }
 
@@ -228,14 +236,14 @@ function explainInvalidResourceId(resourceId: string): string {
   ].join(" ");
 }
 
-async function ensureLoyaltyClass() {
+async function ensureLoyaltyClass(program?: WalletProgram) {
   const auth = getAuth();
   const client = await auth.getClient();
-  const id = classId();
+  const id = classId(program);
   const base =
     "https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass";
 
-  if (usesPreparedClass()) {
+  if (usesPreparedClass(program)) {
     const { data } = await client.request<{ reviewStatus?: string }>({
       url: resourceUrl(base, id),
       method: "GET",
@@ -356,10 +364,11 @@ async function ensureLoyaltyClass() {
   return id;
 }
 
-function buildLoyaltyObject(cliente: GoogleClientePass) {
+function buildLoyaltyObject(cliente: GoogleClientePass, program?: WalletProgram) {
+  const goal = program?.goal ?? STAMP_GOAL;
   const sellosLlenos = availableStamps(cliente);
-  const restantes = Math.max(0, STAMP_GOAL - sellosLlenos);
-  const rewardLabel = STAMP_REWARD;
+  const restantes = Math.max(0, goal - sellosLlenos);
+  const rewardLabel = program?.reward || STAMP_REWARD;
 
   const textModulesData = [
     {
@@ -389,8 +398,8 @@ function buildLoyaltyObject(cliente: GoogleClientePass) {
   }
 
   return {
-    id: objectId(cliente.qrCode),
-    classId: classId(),
+    id: objectId(cliente.qrCode, program),
+    classId: classId(program),
     state: "ACTIVE" as const,
     accountName: cliente.nombre,
     accountId: cliente.pin,
@@ -400,7 +409,7 @@ function buildLoyaltyObject(cliente: GoogleClientePass) {
     },
     secondaryLoyaltyPoints: {
       label: "Sellos",
-      balance: { string: `${sellosLlenos}/${STAMP_GOAL}` },
+      balance: { string: `${sellosLlenos}/${goal}` },
     },
     // Solo texto — nunca una imagen de nivel (evita BRONCE-V9.PNG / "?").
     rewardsTier: nivelDisplay(cliente.nivel),
@@ -410,7 +419,7 @@ function buildLoyaltyObject(cliente: GoogleClientePass) {
       alternateText: `PIN ${cliente.pin}`,
     },
     textModulesData,
-    ...(!usesPreparedClass() ? { hexBackgroundColor: "#3D2E28" } : {}),
+    ...(!usesPreparedClass(program) ? { hexBackgroundColor: "#3D2E28" } : {}),
   };
 }
 
@@ -494,26 +503,28 @@ export async function checkPreparedGoogleClass() {
 }
 
 export async function createGoogleWalletSaveUrl(
-  cliente: GoogleClientePass
+  cliente: GoogleClientePass,
+  program?: WalletProgram
 ): Promise<string> {
-  if (!isGoogleConfigured()) {
+  if (!googleEnabledFor(program)) {
     throw new Error("Google Wallet no configurado");
   }
 
-  await ensureLoyaltyClass();
-  const loyaltyObject = buildLoyaltyObject(cliente);
+  await ensureLoyaltyClass(program);
+  const loyaltyObject = buildLoyaltyObject(cliente, program);
   await upsertLoyaltyObject(loyaltyObject);
   return buildSaveUrl(loyaltyObject);
 }
 
 export async function updateGoogleWalletObject(
-  cliente: GoogleClientePass
+  cliente: GoogleClientePass,
+  program?: WalletProgram
 ): Promise<WalletSyncResult> {
-  if (!isGoogleConfigured()) {
+  if (!googleEnabledFor(program)) {
     return { ok: false, error: "Google Wallet no configurado" };
   }
   try {
-    const loyaltyObject = buildLoyaltyObject(cliente);
+    const loyaltyObject = buildLoyaltyObject(cliente, program);
     await upsertLoyaltyObject(loyaltyObject);
     return { ok: true };
   } catch (err) {

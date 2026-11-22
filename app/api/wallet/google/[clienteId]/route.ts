@@ -1,3 +1,5 @@
+import { tenantProgram } from "@/lib/tenant";
+import { requestTenantSlug } from "@/lib/tenant";
 import { denyCustomerAccess } from "@/lib/customer-session";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -29,8 +31,8 @@ export async function GET(
     const denied = denyCustomerAccess(request, clienteId);
     if (denied) return denied;
 
-    const cliente = await prisma.cliente.findUnique({
-      where: { id: clienteId },
+    const cliente = await prisma.cliente.findFirst({
+      where: { id: clienteId, activo: true, tenant: { slug: requestTenantSlug(request), activo: true } },
       include: {
         tenant: true,
         logrosDesbloqueados: {
@@ -83,7 +85,7 @@ export async function GET(
         icono: cl.logro.icono,
         nombre: cl.logro.nombre,
       })),
-    });
+    }, tenantProgram(cliente.tenant));
 
     return NextResponse.redirect(saveUrl);
   } catch (error) {

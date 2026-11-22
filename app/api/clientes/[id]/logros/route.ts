@@ -1,5 +1,7 @@
 import { denyCustomerAccess } from "@/lib/customer-session";
 import { NextRequest, NextResponse } from "next/server";
+import { staffTenant } from "@/lib/staff-access";
+import { requestTenantSlug } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -18,7 +20,12 @@ export async function GET(
     }
 
     const denied = denyCustomerAccess(request, clienteId);
-    if (denied) return denied;
+    if (denied && !await staffTenant(request)) return denied;
+    const cliente = await prisma.cliente.findFirst({
+      where: { id: clienteId, activo: true, tenant: { slug: requestTenantSlug(request), activo: true } },
+      select: { tenantId: true },
+    });
+    if (!cliente) return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
 
     // Obtener logros desbloqueados del cliente
     const logrosDesbloqueados = await prisma.clienteLogro.findMany({
@@ -44,19 +51,6 @@ export async function GET(
       },
     });
 
-    // Obtener total de logros disponibles para calcular progreso
-    const cliente = await prisma.cliente.findUnique({
-      where: { id: clienteId },
-      select: { tenantId: true },
-    });
-
-    if (!cliente) {
-      return NextResponse.json(
-        { error: "Cliente no encontrado" },
-        { status: 404 }
-      );
-    }
-
     const totalLogros = await prisma.logro.count({
       where: {
         tenantId: cliente.tenantId,
@@ -71,7 +65,7 @@ export async function GET(
       })),
       total: logrosDesbloqueados.length,
       disponibles: totalLogros,
-      progreso: Math.round((logrosDesbloqueados.length / totalLogros) * 100),
+      progreso: totalLogros ? Math.round((logrosDesbloqueados.length / totalLogros) * 100) : 0,
     });
   } catch (error) {
     console.error("Error al obtener logros:", error);

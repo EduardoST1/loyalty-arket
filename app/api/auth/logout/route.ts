@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-import { BARISTA_SESSION_COOKIE } from "@/lib/barista-session";
+import { NextRequest, NextResponse } from "next/server";
+import { staffCookieName } from "@/lib/barista-session";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(BARISTA_SESSION_COOKIE, "", {
+  res.cookies.set(staffCookieName(request.nextUrl.searchParams.get("negocio") || undefined), "", {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

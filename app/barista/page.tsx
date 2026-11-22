@@ -1,7 +1,9 @@
 "use client";
 
-import { availableStamps, STAMP_GOAL, STAMP_REWARD_SLUG } from "@/lib/stamps";
-import Image from "next/image";
+import { useTenantView } from "@/lib/tenant-view";
+
+import { availableStamps, STAMP_REWARD_SLUG } from "@/lib/stamps";
+import { TenantLogo } from "@/components/brand/TenantLogo";
 import { useState, FormEvent, useRef, useEffect } from "react";
 import { Html5QrcodeScanner } from "html5-qrcode";
 
@@ -60,6 +62,7 @@ interface VisitaResult {
 }
 
 export default function BaristaPanel() {
+  const { tenant, link, api, goal, reward, clubName } = useTenantView();
   const [searchType, setSearchType] = useState<"telefono" | "pin" | "qr">("pin");
   const [searchValue, setSearchValue] = useState("");
   const [cliente, setCliente] = useState<Cliente | null>(null);
@@ -86,7 +89,7 @@ export default function BaristaPanel() {
 
   const loadCategorias = async () => {
     try {
-      const response = await fetch("/api/categorias");
+      const response = await fetch(api("/api/categorias"));
       if (response.ok) {
         const data = await response.json();
         setCategorias(data);
@@ -98,7 +101,7 @@ export default function BaristaPanel() {
 
   const loadCanjes = async () => {
     try {
-      const response = await fetch("/api/canjes");
+      const response = await fetch(api("/api/canjes"));
       if (response.ok) {
         const data = await response.json();
         setCanjes(data);
@@ -175,7 +178,7 @@ export default function BaristaPanel() {
         value: qrCode,
       });
 
-      const response = await fetch(`/api/barista/buscar?${params}`);
+      const response = await fetch(api(`/api/barista/buscar?${params}`));
       
       if (!response.ok) {
         const error = await response.json();
@@ -204,7 +207,7 @@ export default function BaristaPanel() {
         value: searchValue,
       });
 
-      const response = await fetch(`/api/barista/buscar?${params}`);
+      const response = await fetch(api(`/api/barista/buscar?${params}`));
       
       if (!response.ok) {
         const error = await response.json();
@@ -214,7 +217,7 @@ export default function BaristaPanel() {
       const data = await response.json();
       
       // Cargar logros del cliente
-      const logrosResponse = await fetch(`/api/clientes/${data.id}/logros`);
+      const logrosResponse = await fetch(api(`/api/clientes/${data.id}/logros`));
       if (logrosResponse.ok) {
         const logrosData = await logrosResponse.json();
         data.logros = logrosData.logros.slice(0, 5); // Solo mostrar los últimos 5
@@ -243,7 +246,7 @@ export default function BaristaPanel() {
     setSuccessMessage(null);
 
     try {
-      const response = await fetch("/api/barista/registrar-visita", {
+      const response = await fetch(api("/api/barista/registrar-visita"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -307,7 +310,7 @@ export default function BaristaPanel() {
     setSuccessMessage(null);
 
     try {
-      const response = await fetch("/api/barista/canjear", {
+      const response = await fetch(api("/api/barista/canjear"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -372,20 +375,21 @@ export default function BaristaPanel() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="relative w-40 h-20 mx-auto mb-4">
-            <Image
-              src={process.env.NEXT_PUBLIC_LOGO_PATH || "/logo.png"}
-              alt="Logo"
-              fill
-              className="object-contain drop-shadow-lg"
-              priority
-            />
+            <TenantLogo className="mx-auto h-full max-w-full object-contain drop-shadow-lg" />
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-dulza-chocolate mb-2">
-            Panel de Barista
+            Panel de caja
           </h1>
           <p className="text-dulza-chocolate-dark/80 text-lg">
-            Registra visitas y gana sonrisas ☕
+            {tenant ? tenant.name : "Registra visitas y canjea recompensas"}
           </p>
+          <button type="button" className="mt-3 text-sm font-medium text-dulza-jade underline"
+            onClick={async () => {
+              const response = await fetch(api("/api/auth/logout"), { method: "POST" });
+              if (response.ok) window.location.assign(link("/login"));
+            }}>
+            Cerrar sesión de caja
+          </button>
         </div>
 
         {/* Main Card */}
@@ -707,7 +711,7 @@ export default function BaristaPanel() {
                         {canjes.map((canje) => {
                           const esCanjeSellos = canje.slug === STAMP_REWARD_SLUG;
                           const saldo = esCanjeSellos ? availableStamps(cliente) : cliente.puntos;
-                          const costo = esCanjeSellos ? STAMP_GOAL : canje.costoPuntos;
+                          const costo = esCanjeSellos ? goal : canje.costoPuntos;
                           const tienesPuntos = saldo >= costo;
                           return (
                             <button

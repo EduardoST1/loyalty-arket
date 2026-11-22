@@ -1,3 +1,4 @@
+import { tenantProgram } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
 import { WALLET_CONFIG, isAppleConfigured, isGoogleConfigured } from "./wallet-config";
 import {
@@ -26,6 +27,7 @@ export async function notifyPassUpdate(
       const cliente = await prisma.cliente.findUnique({
         where: { id: clienteId },
         include: {
+          tenant: true,
           logrosDesbloqueados: {
             where: { desbloqueado: true },
             include: { logro: true },
@@ -50,7 +52,7 @@ export async function notifyPassUpdate(
             icono: cl.logro.icono,
             nombre: cl.logro.nombre,
           })),
-        });
+        }, tenantProgram(cliente.tenant));
         if (result.google.ok) {
           console.log(`🟢 Google Wallet actualizado para cliente ${clienteId}`);
         } else {

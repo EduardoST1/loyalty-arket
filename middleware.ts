@@ -31,7 +31,7 @@ export async function middleware(request: NextRequest) {
   const needsBaristaApi =
     pathname.startsWith("/api/barista/") || pathname === "/api/barista";
 
-  if (needsBaristaApi && !session) {
+  if (needsBaristaApi && !request.nextUrl.searchParams.has("negocio") && !session) {
     return NextResponse.json(
       { message: "Sesión de barista requerida" },
       { status: 401 }

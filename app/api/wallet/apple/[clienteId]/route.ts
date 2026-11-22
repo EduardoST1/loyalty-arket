@@ -1,3 +1,4 @@
+import { requestTenantSlug } from "@/lib/tenant";
 import { denyCustomerAccess } from "@/lib/customer-session";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -28,8 +29,8 @@ export async function GET(
     if (denied) return denied;
 
     // Buscar el cliente
-    const cliente = await prisma.cliente.findUnique({
-      where: { id: clienteId },
+    const cliente = await prisma.cliente.findFirst({
+      where: { id: clienteId, activo: true, tenant: { slug: requestTenantSlug(request), activo: true } },
       include: {
         tenant: true,
         logrosDesbloqueados: {

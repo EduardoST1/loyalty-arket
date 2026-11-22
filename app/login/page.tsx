@@ -1,10 +1,13 @@
 "use client";
 
+import { useTenantView } from "@/lib/tenant-view";
+
 import { FormEvent, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 
 function LoginForm() {
   const router = useRouter();
+  const { tenant, link, api, goal, reward, clubName } = useTenantView();
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -14,7 +17,7 @@ function LoginForm() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(api("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin }),
@@ -24,7 +27,7 @@ function LoginForm() {
         setError(data.message || "PIN incorrecto");
         return;
       }
-      router.replace("/barista");
+      router.replace(link("/barista"));
     } catch {
       setError("No se pudo iniciar sesión");
     } finally {
@@ -39,7 +42,7 @@ function LoginForm() {
         className="w-full max-w-sm rounded-4xl border border-dulza-cream bg-white p-8 shadow-card"
       >
         <h1 className="font-display text-2xl font-bold text-dulza-chocolate">
-          Acceso barista
+          Acceso a caja{tenant ? ` · ${tenant.name}` : ""}
         </h1>
         <p className="mt-2 text-sm text-dulza-coffee">
           Ingresa el PIN del personal para registrar visitas y canjes.

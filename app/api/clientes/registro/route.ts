@@ -1,33 +1,17 @@
+import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes, randomInt } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { customerSessionsConfigured, hasCustomerSession, setCustomerSession } from "@/lib/customer-session";
-import { BRAND } from "@/lib/brand";
-import { ensureLoyaltyCatalog } from "@/lib/ensure-loyalty-catalog";
+import { activeTenant, requestTenantSlug } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function generateQRCode(): string {
+function generateQRCode(slug: string): string {
   const uuid = randomBytes(16).toString("hex");
-  const prefix = BRAND.tenantSlug.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12) || "LOYALTY";
+  const prefix = slug.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12) || "LOYALTY";
   return `${prefix}-QR-${uuid}`;
-}
-
-function generatePIN(): string {
-  return randomInt(1000, 10000).toString();
-}
-
-async function getUniquePIN(): Promise<string> {
-  for (let i = 0; i < 20; i++) {
-    const pin = generatePIN();
-    const exists = await prisma.cliente.findFirst({
-      where: { pin },
-      select: { id: true },
-    });
-    if (!exists) return pin;
-  }
-  throw new Error("No se pudo generar un PIN único");
 }
 
 function parseBirthday(value: string): Date | null {
@@ -78,8 +62,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { tenantId } = await ensureLoyaltyCatalog();
-    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    const slug = requestTenantSlug(request);
+    const tenant = await activeTenant(slug);
 
     if (!tenant?.activo) {
       return NextResponse.json({ message: "El programa no está disponible" }, { status: 503 });
@@ -109,54 +93,37 @@ export async function POST(request: NextRequest) {
         }, { status: 409 });
       }
       const response = NextResponse.json({ id: existente.id, existing: true });
-      setCustomerSession(response, existente.id);
+      setCustomerSession(response, existente.id, request);
       return response;
     }
 
-    let pin = await getUniquePIN();
-    const refPrefix = (
-      BRAND.tenantSlug.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8) || "CLUB"
-    );
-    let codigoReferido = `${refPrefix}${pin}`;
-    let codigoExiste = await prisma.cliente.findFirst({
-      where: { codigoReferido },
-      select: { id: true },
-    });
-
-    let attempts = 0;
-    while (codigoExiste && attempts < 10) {
-      pin = await getUniquePIN();
-      codigoReferido = `${refPrefix}${pin}`;
-      codigoExiste = await prisma.cliente.findFirst({
-        where: { codigoReferido },
-        select: { id: true },
-      });
-      attempts += 1;
+    let cliente;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      try {
+        cliente = await prisma.cliente.create({
+          data: {
+            tenantId: tenant.id,
+            nombre: nombre.trim(),
+            telefono: telefonoLimpio,
+            fechaCumpleanos: birthday,
+            qrCode: generateQRCode(slug),
+            pin: String(randomInt(1000, 10000)),
+            codigoReferido: randomBytes(8).toString("hex").toUpperCase(),
+            puntos: 50,
+          },
+        });
+        break;
+      } catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+        if (await prisma.cliente.findUnique({
+          where: { tenantId_telefono: { tenantId: tenant.id, telefono: telefonoLimpio } },
+          select: { id: true },
+        })) {
+          return NextResponse.json({ message: "Este teléfono ya tiene una tarjeta." }, { status: 409 });
+        }
+      }
     }
-
-    if (codigoExiste) {
-      return NextResponse.json(
-        { message: "No se pudo generar un código único. Intenta de nuevo." },
-        { status: 500 }
-      );
-    }
-
-    const qrCode = generateQRCode();
-
-    const cliente = await prisma.cliente.create({
-      data: {
-        tenantId: tenant.id,
-        nombre: String(nombre).trim(),
-        telefono: telefonoLimpio,
-        fechaCumpleanos: birthday,
-        qrCode,
-        pin,
-        codigoReferido,
-        puntos: 50,
-        visitas: 0,
-        nivel: "BRONCE",
-      },
-    });
+    if (!cliente) return NextResponse.json({ message: "No se pudo asignar un PIN de cliente." }, { status: 503 });
 
     if (codigoReferidoIngresado) {
       try {
@@ -202,7 +169,7 @@ export async function POST(request: NextRequest) {
     }
 
     const response = NextResponse.json({ id: cliente.id }, { status: 201 });
-    setCustomerSession(response, cliente.id);
+    setCustomerSession(response, cliente.id, request);
     return response;
   } catch (error) {
     console.error("Error al registrar cliente:", error);
