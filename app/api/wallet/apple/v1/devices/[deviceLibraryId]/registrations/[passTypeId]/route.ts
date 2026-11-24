@@ -1,56 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { appleWalletConfig } from "@/lib/wallet-apple-config";
+import { appleChangedAt, validAppleDevice } from "@/lib/wallet-apple";
 
-/**
- * GET /api/wallet/apple/v1/devices/{deviceLibraryId}/registrations/{passTypeId}
- * 
- * Devuelve lista de serial numbers de passes que este dispositivo debe actualizar
- * Apple llama a este endpoint periódicamente para verificar si hay actualizaciones
- */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ deviceLibraryId: string; passTypeId: string }> }
-) {
-  try {
-    const { deviceLibraryId, passTypeId } = await params;
-    const searchParams = request.nextUrl.searchParams;
-    const passesUpdatedSince = searchParams.get("passesUpdatedSince");
+type Context = { params: Promise<{ deviceLibraryId: string; passTypeId: string }> };
 
-    // Obtener todos los passes registrados en este dispositivo
-    let devices = await prisma.walletDevice.findMany({
-      where: {
-        deviceLibraryId,
-        passTypeId,
-        tipo: "apple",
-      },
-      select: {
-        serialNumber: true,
-        updatedAt: true,
-      },
-    });
-
-    // Si se proporciona passesUpdatedSince, filtrar solo los actualizados después de esa fecha
-    if (passesUpdatedSince) {
-      const sinceDate = new Date(passesUpdatedSince);
-      devices = devices.filter(d => d.updatedAt > sinceDate);
-    }
-
-    const serialNumbers = devices.map(d => d.serialNumber);
-    const lastUpdated = devices.length > 0
-      ? Math.max(...devices.map(d => d.updatedAt.getTime()))
-      : Date.now();
-
-    console.log(`📋 Apple solicitó passes actualizados para dispositivo ${deviceLibraryId}: ${serialNumbers.length} encontrados`);
-
-    return NextResponse.json({
-      serialNumbers,
-      lastUpdated: new Date(lastUpdated).toISOString(),
-    });
-  } catch (error) {
-    console.error("Error obteniendo serial numbers:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
+export async function GET(request: Request, { params }: Context) {
+  const { deviceLibraryId, passTypeId } = await params;
+  const config = appleWalletConfig();
+  if (!config || config.passTypeIdentifier !== passTypeId) return new NextResponse(null, { status: 404 });
+  if (!validAppleDevice(deviceLibraryId)) return new NextResponse(null, { status: 400 });
+  const raw = new URL(request.url).searchParams.get("passesUpdatedSince");
+  const since = raw && /^\d{1,15}$/.test(raw) ? Number(raw) : 0;
+  const rows = await prisma.walletDevice.findMany({
+    where: { deviceLibraryId, passTypeId, tipo: "apple", cliente: { activo: true, tenant: { activo: true } } },
+    select: { serialNumber: true, createdAt: true, cliente: { select: { updatedAt: true, tenant: { select: { updatedAt: true } } } } },
+  });
+  const updates = rows.map(row => ({
+    serial: row.serialNumber, time: Math.max(row.createdAt.getTime(), appleChangedAt(row.cliente)),
+  })).filter(row => row.time > since);
+  if (!updates.length) return new NextResponse(null, { status: 204 });
+  const lastUpdated = updates.reduce((latest, row) => Math.max(latest, row.time), since);
+  return NextResponse.json({ lastUpdated: String(lastUpdated), serialNumbers: updates.map(row => row.serial) });
 }

@@ -1,6 +1,8 @@
 "use client";
 
-import Image from "next/image";
+import { useTenantView } from "@/lib/tenant-view";
+
+import { TenantLogo } from "@/components/brand/TenantLogo";
 import Link from "next/link";
 import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -9,6 +11,7 @@ import { SiteFooter } from "@/components/brand/SiteFooter";
 
 export default function RegistroPage() {
   const router = useRouter();
+  const { tenant, link, api, goal, reward, clubName } = useTenantView();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [maxBirthday, setMaxBirthday] = useState("2010-12-31");
@@ -32,7 +35,7 @@ export default function RegistroPage() {
     };
 
     try {
-      const response = await fetch("/api/clientes/registro", {
+      const response = await fetch(api("/api/clientes/registro"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -61,7 +64,7 @@ export default function RegistroPage() {
       }
       const qs = new URLSearchParams({ clienteId: String(result.id) });
       if (result.existing) qs.set("recovered", "1");
-      router.push(`/wallet?${qs.toString()}`);
+      router.push(link(`/wallet?${qs.toString()}`));
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error desconocido";
       setError(
@@ -80,13 +83,13 @@ export default function RegistroPage() {
       <div className="mx-auto max-w-xl px-4 pb-16 pt-28 md:pt-28">
         <div className="mb-8 text-center">
           <div className="relative mx-auto mb-4 h-20 w-20">
-            <Image src={process.env.NEXT_PUBLIC_LOGO_PATH || "/logo.png"} alt="Logo" fill className="object-contain" />
+            <TenantLogo className="h-full max-w-full object-contain" />
           </div>
           <h1 className="font-display text-4xl font-black text-dulza-chocolate">
-            Únete al club
+            {tenant ? `Únete a ${clubName}` : "Únete al club"}
           </h1>
           <p className="mt-2 text-dulza-chocolate-dark/70">
-            30 segundos. Sin app. Directo a tu Wallet.
+            {tenant?.tagline || "30 segundos. Sin app. Directo a tu Wallet."}
           </p>
           <p className="mt-2 text-xs text-dulza-chocolate-dark/55">
             Si ya tienes tarjeta, ábrela desde el navegador donde te registraste.
@@ -192,14 +195,14 @@ export default function RegistroPage() {
               >
                 Acepto los{" "}
                 <Link
-                  href="/terminos"
+                  href={link("/terminos")}
                   className="font-semibold text-dulza-jade hover:underline"
                 >
                   términos
                 </Link>{" "}
                 y la{" "}
                 <Link
-                  href="/privacidad"
+                  href={link("/privacidad")}
                   className="font-semibold text-dulza-jade hover:underline"
                 >
                   privacidad
@@ -219,7 +222,7 @@ export default function RegistroPage() {
 
         <p className="mt-6 text-center">
           <Link
-            href="/"
+            href={link("/")}
             className="text-sm font-medium text-dulza-jade hover:underline"
           >
             ← Volver al inicio

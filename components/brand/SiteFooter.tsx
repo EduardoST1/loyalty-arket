@@ -1,7 +1,10 @@
+"use client";
+
+import { useTenantView } from "@/lib/tenant-view";
 import Link from "next/link";
 
 export function SiteFooter() {
-  const brand = process.env.NEXT_PUBLIC_BRAND_NAME || "Tu Negocio";
+  const { name: brand, link } = useTenantView();
   const year = new Date().getFullYear();
 
   return (
@@ -11,14 +14,14 @@ export function SiteFooter() {
           © {year} {brand} — Loyalty Kit
         </p>
         <div className="flex flex-wrap justify-center gap-6 text-sm">
-          <Link href="/registro" className="hover:text-white">
+          <Link href={link("/registro")} className="hover:text-white">
             Registro
           </Link>
-          <Link href="/wallet" className="hover:text-white">
+          <Link href={link("/wallet")} className="hover:text-white">
             Wallet
           </Link>
-          <Link href="/barista" className="hover:text-white">
-            Barista
+          <Link href={link("/barista")} className="hover:text-white">
+            Caja
           </Link>
         </div>
       </div>

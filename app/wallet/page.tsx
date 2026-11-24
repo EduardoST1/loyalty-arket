@@ -1,11 +1,13 @@
 "use client";
 
-import Image from "next/image";
+import { useTenantView } from "@/lib/tenant-view";
+
+import { TenantLogo } from "@/components/brand/TenantLogo";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { StampCard } from "@/components/brand/StampCard";
-import { availableStamps, STAMP_GOAL } from "@/lib/stamps";
+import { availableStamps } from "@/lib/stamps";
 import { WalletButtons } from "@/components/brand/WalletButtons";
 
 interface Cliente {
@@ -54,6 +56,7 @@ export default function WalletPage() {
 }
 
 function WalletPageContent() {
+  const { tenant, link, api, goal, reward, clubName } = useTenantView();
   const searchParams = useSearchParams();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const clienteId = searchParams.get("clienteId") || sessionId;
@@ -69,12 +72,26 @@ function WalletPageContent() {
   const [activeTab, setActiveTab] = useState<"home" | "rewards">("home");
   const [showRecoveredBanner, setShowRecoveredBanner] = useState(recovered);
   const [walletMsg, setWalletMsg] = useState<string | null>(null);
+  const [appleReady, setAppleReady] = useState(false);
+  const showApple = tenant?.apple ?? appleReady;
+  const showGoogle = !tenant || tenant.google;
+
+  useEffect(() => {
+    if (tenant) return;
+    const controller = new AbortController();
+    fetch("/api/wallet/status", { signal: controller.signal })
+      .then(res => res.ok ? res.json() : null)
+      .then(status => { if (status?.apple) setAppleReady(true); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [tenant]);
+
   const isFirstLoad = useRef(true);
 
   useEffect(() => {
     if (clienteId) return;
     const controller = new AbortController();
-    fetch("/api/clientes/session", { signal: controller.signal })
+    fetch(api("/api/clientes/session"), { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) throw new Error("Abre tu tarjeta desde el navegador donde te registraste.");
         const { id } = await res.json();
@@ -94,7 +111,7 @@ function WalletPageContent() {
     const cargarDatos = () => {
       if (!isFirstLoad.current) setSyncing(true);
 
-      fetch(`/api/clientes/${clienteId}`)
+      fetch(api(`/api/clientes/${clienteId}`))
         .then(async (res) => {
           if (!res.ok) throw new Error((await res.json()).message || "Cliente no encontrado");
           return res.json();
@@ -105,7 +122,7 @@ function WalletPageContent() {
           setLoading(false);
         });
 
-      fetch(`/api/clientes/${clienteId}/logros`)
+      fetch(api(`/api/clientes/${clienteId}/logros`))
         .then((res) => {
           if (!res.ok) throw new Error("Error al cargar logros");
           return res.json();
@@ -129,14 +146,14 @@ function WalletPageContent() {
   }, [clienteId]);
 
   const handleAddToGoogleWallet = () => {
-    window.location.href = `/api/wallet/google/${clienteId}`;
+    window.location.href = api(`/api/wallet/google/${clienteId}`);
   };
 
   const handleRefreshGooglePass = async () => {
     if (!clienteId) return;
     setWalletMsg("Actualizando pass en Google…");
     try {
-      const res = await fetch(`/api/wallet/refresh/${clienteId}`, {
+      const res = await fetch(api(`/api/wallet/refresh/${clienteId}`), {
         method: "POST",
       });
       const json = await res.json();
@@ -144,7 +161,7 @@ function WalletPageContent() {
         throw new Error(json.sync?.error || json.error || "No se pudo actualizar");
       }
       setWalletMsg(
-        `Listo · ${json.sellosEnCiclo}/${STAMP_GOAL} sellos · ${json.puntos} pts. Si en el teléfono no cambia, quita el pass y vuelve a “Add to Google Wallet”.`
+        `Listo · ${json.sellosEnCiclo}/${goal} sellos · ${json.puntos} pts. Si en el teléfono no cambia, quita el pass y vuelve a “Add to Google Wallet”.`
       );
     } catch (err) {
       setWalletMsg(
@@ -169,7 +186,7 @@ function WalletPageContent() {
       <div className="flex min-h-screen items-center justify-center bg-dulza-cream-light">
         <div className="text-center">
           <div className="relative mx-auto mb-6 h-24 w-24 animate-bounce">
-            <Image src={process.env.NEXT_PUBLIC_LOGO_PATH || "/logo.png"} alt="Logo" fill className="object-contain" />
+            <TenantLogo className="h-full max-w-full object-contain" />
           </div>
           <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-dulza-jade border-t-transparent" />
           <p className="font-medium text-dulza-chocolate">Preparando tu tarjeta...</p>
@@ -183,7 +200,7 @@ function WalletPageContent() {
       <div className="flex min-h-screen items-center justify-center bg-dulza-cream-light p-4">
         <div className="dulza-card max-w-md p-10 text-center">
           <p className="mb-6 text-lg font-medium text-red-600">{error || "Error desconocido"}</p>
-          <Link href="/registro" className="dulza-pill bg-dulza-jade text-white hover:bg-dulza-jade-light">
+          <Link href={link("/registro")} className="dulza-pill bg-dulza-jade text-white hover:bg-dulza-jade-light">
             Volver al registro
           </Link>
         </div>
@@ -205,8 +222,8 @@ function WalletPageContent() {
       <div className="mx-auto max-w-lg px-4 py-6">
         {/* App header */}
         <div className="mb-6 flex items-center justify-between">
-          <Link href="/" className="relative h-10 w-28">
-            <Image src={process.env.NEXT_PUBLIC_LOGO_PATH || "/logo.png"} alt="Logo" fill className="object-contain object-left" />
+          <Link href={link("/")} className="relative h-10 w-28">
+            <TenantLogo className="h-full max-w-full object-contain object-left" />
           </Link>
           <div className="flex items-center gap-3">
             {syncing && (
@@ -255,7 +272,8 @@ function WalletPageContent() {
             <div className="mb-6">
               <StampCard
                 visitas={availableStamps(cliente)}
-                visitasMeta={STAMP_GOAL}
+                visitasMeta={goal}
+                reward={reward}
                 puntos={Number(cliente.puntos) || 0}
                 nivel={cliente.nivel || "BRONCE"}
                 showQrAction
@@ -266,17 +284,18 @@ function WalletPageContent() {
               />
             </div>
 
-            <WalletButtons
-              onGoogle={handleAddToGoogleWallet}
-            />
+            {(showApple || showGoogle) && <WalletButtons
+              onApple={showApple ? () => { window.location.href = api(`/api/wallet/apple/${clienteId}`); } : undefined}
+              onGoogle={showGoogle ? handleAddToGoogleWallet : undefined}
+            />}
 
-            <button
+            {showGoogle && <button
               type="button"
               onClick={() => void handleRefreshGooglePass()}
               className="mt-3 w-full rounded-2xl border-2 border-dulza-jade/40 bg-white px-4 py-3 text-sm font-semibold text-dulza-jade"
             >
               Forzar actualización en Google Wallet
-            </button>
+            </button>}
             {walletMsg && (
               <p className="mt-2 rounded-xl bg-dulza-cream px-3 py-2 text-xs text-dulza-chocolate-dark">
                 {walletMsg}

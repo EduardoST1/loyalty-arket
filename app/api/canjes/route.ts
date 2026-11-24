@@ -1,10 +1,12 @@
-import { NextResponse } from "next/server";
-import { ensureLoyaltyCatalog } from "@/lib/ensure-loyalty-catalog";
+import { NextRequest, NextResponse } from "next/server";
+import { staffTenant } from "@/lib/staff-access";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const { tenantId } = await ensureLoyaltyCatalog();
+    const tenant = await staffTenant(request);
+    if (!tenant) return NextResponse.json({ message: "Sesión de caja requerida" }, { status: 401 });
+    const tenantId = tenant.id;
 
     const canjes = await prisma.tipoCanje.findMany({
       where: {

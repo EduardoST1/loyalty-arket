@@ -1,9 +1,9 @@
+import { staffTenant } from "@/lib/staff-access";
 import { NextRequest, NextResponse } from "next/server";
 import { Nivel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { verificarLogros } from "@/lib/logros";
 import { triggerPassUpdateOnEvent } from "@/lib/wallet-push";
-import { ensureLoyaltyCatalog } from "@/lib/ensure-loyalty-catalog";
 
 const PUNTOS_POR_VISITA = 5;
 
@@ -17,6 +17,8 @@ function calcularNivel(puntosHistoricos: number): Nivel {
 
 export async function POST(request: NextRequest) {
   try {
+    const tenant = await staffTenant(request);
+    if (!tenant) return NextResponse.json({ message: "Sesión de caja requerida" }, { status: 401 });
     const body = await request.json();
     const { clienteId } = body;
     let categorias: number[] = Array.isArray(body.categorias)
@@ -30,7 +32,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { tenantId } = await ensureLoyaltyCatalog();
+    const tenantId = tenant.id;
     const cliente = await prisma.cliente.findFirst({
       where: { id: Number(clienteId), tenantId, activo: true },
     });

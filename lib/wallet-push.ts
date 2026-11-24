@@ -1,5 +1,7 @@
+import { tenantProgram } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
-import { WALLET_CONFIG, isAppleConfigured, isGoogleConfigured } from "./wallet-config";
+import { isGoogleConfigured } from "./wallet-config";
+import { notifyAppleWallet } from "./wallet-apple-push";
 import {
   updateGoogleWalletObject,
   type WalletSyncResult,
@@ -17,15 +19,15 @@ export async function notifyPassUpdate(
 ): Promise<PassUpdateResult> {
   const result: PassUpdateResult = { google: null };
 
+  const apple = notifyAppleWallet(clienteId).catch(() => {
+    console.warn("Apple Wallet: no se pudo notificar la actualización.");
+  });
   try {
-    const devices = await prisma.walletDevice.findMany({
-      where: { clienteId },
-    });
-
     if (isGoogleConfigured()) {
       const cliente = await prisma.cliente.findUnique({
         where: { id: clienteId },
         include: {
+          tenant: true,
           logrosDesbloqueados: {
             where: { desbloqueado: true },
             include: { logro: true },
@@ -50,7 +52,7 @@ export async function notifyPassUpdate(
             icono: cl.logro.icono,
             nombre: cl.logro.nombre,
           })),
-        });
+        }, tenantProgram(cliente.tenant));
         if (result.google.ok) {
           console.log(`🟢 Google Wallet actualizado para cliente ${clienteId}`);
         } else {
@@ -70,17 +72,6 @@ export async function notifyPassUpdate(
       };
     }
 
-    if (devices.length === 0) {
-      console.log(`No hay dispositivos Apple registrados para cliente ${clienteId}`);
-    } else {
-      console.log(
-        `📱 Notificando actualización a ${devices.length} dispositivos del cliente ${clienteId}`
-      );
-      const appleDevices = devices.filter((d) => d.tipo === "apple");
-      if (appleDevices.length > 0) {
-        await notifyAppleDevices(appleDevices);
-      }
-    }
   } catch (error) {
     console.error("Error al enviar push notifications:", error);
     if (!result.google) {
@@ -91,18 +82,8 @@ export async function notifyPassUpdate(
     }
   }
 
+  await apple;
   return result;
-}
-
-async function notifyAppleDevices(devices: { pushToken: string }[]): Promise<void> {
-  if (!isAppleConfigured()) {
-    console.log("⚠️  Apple Wallet no configurado. Push notification simulada.");
-    console.log(`   Dispositivos que recibirían notificación: ${devices.length}`);
-    return;
-  }
-
-  void WALLET_CONFIG;
-  console.log(`✅ Push Apple pendientes de APNs (${devices.length} dispositivos)`);
 }
 
 export async function triggerPassUpdateOnEvent(

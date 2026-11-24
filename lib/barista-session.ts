@@ -1,13 +1,22 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, createHash, timingSafeEqual } from "crypto";
 
 export const BARISTA_SESSION_COOKIE = "loyalty_barista_session";
+
+export function staffCookieName(slug?: string) {
+  return slug ? `${BARISTA_SESSION_COOKIE}_${slug}` : BARISTA_SESSION_COOKIE;
+}
+
+export function staffSessionScope(tenant: { slug: string; staffPinHash: string | null }) {
+  const version = createHash("sha256").update(tenant.staffPinHash || "").digest("hex");
+  return `${tenant.slug}:${version}`;
+}
 
 function secret(): string | null {
   const value = process.env.BARISTA_SESSION_SECRET;
   return value && value.length >= 32 ? value : null;
 }
 
-export function signBaristaSession(payload: { ok: true; at: number }): string {
+export function signBaristaSession(payload: { ok: true; at: number; scope?: string }): string {
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const key = secret();
   if (!key) throw new Error("Falta BARISTA_SESSION_SECRET");
@@ -16,7 +25,7 @@ export function signBaristaSession(payload: { ok: true; at: number }): string {
 }
 
 export function verifyBaristaSessionToken(
-  token: string | undefined | null
+  token: string | undefined | null, scope?: string
 ): { ok: true; at: number } | null {
   if (!token || !token.includes(".")) return null;
   const [body, sig] = token.split(".");
@@ -35,8 +44,9 @@ export function verifyBaristaSessionToken(
     const data = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as {
       ok?: boolean;
       at?: number;
+      scope?: string;
     };
-    if (!data.ok || typeof data.at !== "number") return null;
+    if (!data.ok || data.scope !== scope || typeof data.at !== "number") return null;
     // 7 días
     if (Date.now() - data.at > 7 * 24 * 60 * 60 * 1000) return null;
     return { ok: true, at: data.at };

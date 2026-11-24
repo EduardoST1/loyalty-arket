@@ -1,9 +1,11 @@
+import { staffTenant } from "@/lib/staff-access";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureLoyaltyCatalog } from "@/lib/ensure-loyalty-catalog";
 
 export async function GET(request: NextRequest) {
   try {
+    const tenant = await staffTenant(request);
+    if (!tenant) return NextResponse.json({ message: "Sesión de caja requerida" }, { status: 401 });
     const searchParams = request.nextUrl.searchParams;
     const type = searchParams.get("type"); // "telefono" | "qr" | "pin"
     const value = searchParams.get("value");
@@ -15,7 +17,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { tenantId } = await ensureLoyaltyCatalog();
+    const tenantId = tenant.id;
 
     let cliente;
 

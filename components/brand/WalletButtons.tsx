@@ -1,14 +1,19 @@
 "use client";
 
 interface WalletButtonsProps {
-  onGoogle: () => void;
+  onApple?: () => void;
+  onGoogle?: () => void;
   compact?: boolean;
 }
 
-export function WalletButtons({ onGoogle, compact }: WalletButtonsProps) {
+export function WalletButtons({ onApple, onGoogle, compact }: WalletButtonsProps) {
   return (
     <div className={`space-y-3 ${compact ? "" : "max-w-md mx-auto w-full"}`}>
-      <button
+      {onApple && <button type="button" onClick={onApple}
+        className="flex w-full items-center justify-center rounded-2xl bg-black px-6 py-4 font-semibold text-white shadow-md hover:bg-gray-900">
+        Agregar a Apple Wallet
+      </button>}
+      {onGoogle && <button
         type="button"
         onClick={onGoogle}
         className="flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-gray-200 bg-white px-6 py-4 font-semibold text-gray-800 shadow-md transition-all hover:bg-gray-50 hover:scale-[1.01] active:scale-[0.99]"
@@ -20,7 +25,7 @@ export function WalletButtons({ onGoogle, compact }: WalletButtonsProps) {
           <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
         </svg>
         Add to Google Wallet
-      </button>
+      </button>}
     </div>
   );
 }

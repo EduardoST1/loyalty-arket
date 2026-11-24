@@ -1,12 +1,15 @@
+import { staffTenant } from "@/lib/staff-access";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { triggerPassUpdateOnEvent } from "@/lib/wallet-push";
 
-import { BRAND } from "@/lib/brand";
-import { availableStamps, STAMP_GOAL, STAMP_REWARD_SLUG } from "@/lib/stamps";
+import { tenantProgram } from "@/lib/tenant";
+import { availableStamps, STAMP_REWARD_SLUG } from "@/lib/stamps";
 
 export async function POST(request: NextRequest) {
   try {
+    const tenant = await staffTenant(request);
+    if (!tenant) return NextResponse.json({ message: "Sesión de caja requerida" }, { status: 401 });
     const body = await request.json();
     const { clienteId, tipoCanjeId } = body;
 
@@ -19,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     // Buscar el cliente
     const cliente = await prisma.cliente.findFirst({
-      where: { id: clienteId, activo: true, tenant: { slug: BRAND.tenantSlug, activo: true } },
+      where: { id: clienteId, activo: true, tenantId: tenant.id },
     });
 
     if (!cliente) {
@@ -45,7 +48,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sellosGastados = tipoCanje.slug === STAMP_REWARD_SLUG ? STAMP_GOAL : 0;
+    const sellosGastados = tipoCanje.slug === STAMP_REWARD_SLUG ? tenantProgram(tenant).goal : 0;
     if (sellosGastados > availableStamps(cliente)) {
       return NextResponse.json({ error: "Sellos insuficientes" }, { status: 400 });
     }
